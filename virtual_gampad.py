@@ -17,6 +17,10 @@ class VirtualGamepad:
             print("Virtual gamepad stopped.")
 
     def control_sticks(self, roll, pitch, yaw, throttle):
+        """
+        Control the virtual gamepad's sticks based on the provided roll, pitch, yaw, and throttle values.
+        Expects values in the range of -1 to 1 for each parameter.
+        """
         if not self.running:
             print("Gamepad is not running. Please start it first.")
             return
