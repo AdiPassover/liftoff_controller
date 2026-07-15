@@ -1,38 +1,44 @@
-import vgamepad
+import sys
 
+if sys.platform == 'darwin':
+    # macOS: use native IOHIDUserDevice-based virtual gamepad
+    from virtual_gamepad_mac import MacVirtualGamepad as VirtualGamepad
+else:
+    # Windows: use vgamepad (ViGEmBus)
+    import vgamepad
 
-class VirtualGamepad:
-    def __init__(self):
-        self.gamepad = vgamepad.VX360Gamepad()
-        self.running = False
-
-    def start(self):
-        if not self.running:
-            self.running = True
-            print("Virtual gamepad started.")
-
-    def stop(self):
-        if self.running:
+    class VirtualGamepad:
+        def __init__(self):
+            self.gamepad = vgamepad.VX360Gamepad()
             self.running = False
-            print("Virtual gamepad stopped.")
 
-    # Convert values from -1 to 1 into -32768 to 32767 for the gamepad
-    @staticmethod
-    def _scale(value):
-        return int(value * 32767)
+        def start(self):
+            if not self.running:
+                self.running = True
+                print("Virtual gamepad started.")
 
-    def control_sticks(self, roll, pitch, yaw, throttle):
-        """
-        Control the virtual gamepad's sticks based on the provided roll, pitch, yaw, and throttle values.
-        Expects values in the range of -1 to 1 for each parameter.
-        """
-        if not self.running:
-            print("Gamepad is not running. Please start it first.")
-            return
+        def stop(self):
+            if self.running:
+                self.running = False
+                print("Virtual gamepad stopped.")
 
-        self.gamepad.left_joystick_float(x_value_float=self._scale(yaw), y_value_float=self._scale(throttle))
-        self.gamepad.right_joystick_float(x_value_float=self._scale(roll), y_value_float=self._scale(pitch))
-        self.gamepad.update()
+        # Convert values from -1 to 1 into -32768 to 32767 for the gamepad
+        @staticmethod
+        def _scale(value):
+            return int(value * 32767)
+
+        def control_sticks(self, roll, pitch, yaw, throttle):
+            """
+            Control the virtual gamepad's sticks based on the provided roll, pitch, yaw, and throttle values.
+            Expects values in the range of -1 to 1 for each parameter.
+            """
+            if not self.running:
+                print("Gamepad is not running. Please start it first.")
+                return
+
+            self.gamepad.left_joystick_float(x_value_float=self._scale(yaw), y_value_float=self._scale(throttle))
+            self.gamepad.right_joystick_float(x_value_float=self._scale(roll), y_value_float=self._scale(pitch))
+            self.gamepad.update()
 
 
 if __name__ == "__main__":
