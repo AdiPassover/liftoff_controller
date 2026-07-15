@@ -1,0 +1,23 @@
+=-=-= Setup Steps (when on the Mac mini M4) =-=-=
+
+1. Disable SIP (one-time):
+
+- Shut down → hold Power button → boot to Recovery
+- Terminal → csrutil disable → reboot
+
+2. Install Xcode CLI tools:
+
+bash in terminal:
+	xcode-select --install
+
+3. Compile the helper:
+
+bash in terminal:
+	cd macos && bash build.sh
+
+4. Run normally:
+
+bash in terminal
+	python main.py localhost -p 25800
+
+The gamepad will appear in Liftoff's controller settings for calibration.
