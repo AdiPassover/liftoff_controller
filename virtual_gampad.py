@@ -22,11 +22,6 @@ else:
                 self.running = False
                 print("Virtual gamepad stopped.")
 
-        # Convert values from -1 to 1 into -32768 to 32767 for the gamepad
-        @staticmethod
-        def _scale(value):
-            return int(value * 32767)
-
         def control_sticks(self, roll, pitch, yaw, throttle):
             """
             Control the virtual gamepad's sticks based on the provided roll, pitch, yaw, and throttle values.
@@ -36,8 +31,8 @@ else:
                 print("Gamepad is not running. Please start it first.")
                 return
 
-            self.gamepad.left_joystick_float(x_value_float=self._scale(yaw), y_value_float=self._scale(throttle))
-            self.gamepad.right_joystick_float(x_value_float=self._scale(roll), y_value_float=self._scale(pitch))
+            self.gamepad.left_joystick_float(x_value_float=yaw, y_value_float=throttle)
+            self.gamepad.right_joystick_float(x_value_float=roll, y_value_float=pitch)
             self.gamepad.update()
 
 

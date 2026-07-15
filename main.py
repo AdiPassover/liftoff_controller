@@ -14,6 +14,8 @@ def main(server_host: str, server_port: int):
     last_time = time.perf_counter()
 
     def _handle_data(data: bytes):
+        nonlocal last_time
+
         roll, pitch, yaw, throttle = parse_and_convert(data)
 
         now = time.perf_counter()
