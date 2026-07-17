@@ -1,23 +1,113 @@
-=-=-= Setup Steps (when on the Mac mini M4) =-=-=
+Mac mini M4 setup
+=================
 
-1. Disable SIP (one-time):
+Run all terminal commands from the repository root unless stated otherwise.
 
-- Shut down → hold Power button → boot to Recovery
-- Terminal → csrutil disable → reboot
+1. Verify Python and the Xcode Command Line Tools
+--------------------------------------------------
 
-2. Install Xcode CLI tools:
+Check Python:
 
-bash in terminal:
-	xcode-select --install
+    python3 --version
 
-3. Compile the helper:
+If Python is missing, install a current Python 3 release and run the check
+again.
 
-bash in terminal:
-	cd macos && bash build.sh
+Check the Xcode Command Line Tools:
 
-4. Run normally:
+    xcode-select -p
 
-bash in terminal
-	python main.py localhost -p 25800
+If that command fails, install the tools:
 
-The gamepad will appear in Liftoff's controller settings for calibration.
+    xcode-select --install
+
+2. Disable System Integrity Protection (SIP)
+---------------------------------------------
+
+The unsigned IOHIDUserDevice helper requires SIP to be disabled. This reduces
+macOS system protection, so only do this on a machine where that tradeoff is
+acceptable.
+
+1. Shut down the Mac.
+2. Hold the Power button until startup options appear.
+3. Select Options and boot into Recovery.
+4. Open Utilities > Terminal and run:
+
+       csrutil disable
+
+5. Restart macOS and verify:
+
+       csrutil status
+
+The result must say that System Integrity Protection is disabled.
+
+3. Build the native HID helper
+------------------------------
+
+    cd macos
+    bash build.sh
+    cd ..
+
+The resulting file should be an Apple Silicon executable:
+
+    file macos/hid_gamepad_server
+
+4. Test that the virtual gamepad connects and disconnects
+----------------------------------------------------------
+
+In the first Terminal window, run:
+
+    python3 virtual_gamepad_mac.py
+
+The script creates the virtual gamepad, sends test stick values for five
+seconds, and then removes the gamepad.
+
+While those five seconds are running, use a second Terminal window to verify
+that the device exists:
+
+    hidutil list --matching '{"ProductID":0x5853,"VendorID":0x1209}'
+
+Look for "Liftoff Gamepad 0". After the Python script exits, run the same
+command again and verify that the device is gone. Also verify that the socket
+was cleaned up:
+
+    test ! -e /tmp/liftoff_gamepad.sock && echo "Socket cleaned up"
+
+Online controller testers may wait for a button press before showing a
+controller. This virtual controller has axes only, so hidutil or Liftoff's
+controller settings are more reliable checks on macOS.
+
+If the test fails, do not continue to the Radxa integration. Record the Python
+error and collect these diagnostics:
+
+    csrutil status
+    file macos/hid_gamepad_server
+    hidutil list --matching '{"ProductID":0x5853,"VendorID":0x1209}'
+    ls -l /tmp/liftoff_gamepad.sock
+
+5. Run the UDP controller and connect the Radxa
+------------------------------------------------
+
+Find the Mac's active LAN address after reboot. For Wi-Fi, it is commonly:
+
+    ipconfig getifaddr en0
+
+If that prints nothing, inspect the active IPv4 address with:
+
+    ifconfig
+
+Start the controller server on all network interfaces:
+
+    python3 main.py 0.0.0.0 -p 25800
+
+Allow incoming connections if macOS shows a Firewall prompt. In the Radxa web
+UI, enter the Mac's LAN address and UDP port 25800. Do not enter 0.0.0.0 in the
+web UI; that address is only used by main.py to listen on every interface.
+
+Send error values from the Radxa and verify in Liftoff's controller settings
+that roll, pitch, yaw, and throttle move. Stop main.py with Ctrl-C and verify
+that "Liftoff Gamepad 0" and /tmp/liftoff_gamepad.sock are removed.
+
+UDP packet format: four little-endian signed 16-bit integers in this order:
+roll, pitch, yaw, throttle. Each input is expected in the range 0..2000, with
+1000 as the center value.

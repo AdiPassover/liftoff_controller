@@ -4,7 +4,8 @@
  *        IOHIDUserDevice and accepts stick-axis commands over a Unix socket.
  *
  * Build:
- *   clang -framework Foundation -framework IOKit -o hid_gamepad_server hid_gamepad_server.m
+ *   clang -framework Foundation -framework IOKit -framework Security \
+ *         -o hid_gamepad_server hid_gamepad_server.m
  *
  * Protocol (Unix domain socket):
  *   Each message is exactly 16 bytes: 4 × float (little-endian)
@@ -12,14 +13,16 @@
  *
  * Requirements:
  *   - macOS 12+ on Apple Silicon
- *   - SIP disabled (or the com.apple.developer.hid.virtual.device entitlement)
+ *   - A valid signature and provisioning profile authorizing the restricted
+ *     com.apple.developer.hid.virtual.device entitlement
  *
  * Based on the IOHIDUserDevice approach proven in the Lumen project
  * (https://github.com/trollzem/Lumen).
  */
 
 #import <Foundation/Foundation.h>
-#import <IOKit/hid/IOHIDUserDevice.h>
+#import <IOKit/hidsystem/IOHIDUserDevice.h>
+#import <Security/SecTask.h>
 #import <mach/mach_time.h>
 #import <sys/socket.h>
 #import <sys/un.h>
@@ -81,6 +84,44 @@ static void handleSignal(int sig) {
     gRunning = 0;
 }
 
+// ─── Entitlement preflight ─────────────────────────────────────────────────────
+static BOOL hasVirtualHIDEntitlement(void) {
+    static CFStringRef const entitlementName =
+        CFSTR("com.apple.developer.hid.virtual.device");
+
+    SecTaskRef task = SecTaskCreateFromSelf(kCFAllocatorDefault);
+    if (!task) {
+        NSLog(@"[hid_gamepad_server] Could not inspect this process's "
+               "code-signing entitlements (SecTaskCreateFromSelf returned NULL).");
+        return NO;
+    }
+
+    CFErrorRef error = NULL;
+    CFTypeRef value = SecTaskCopyValueForEntitlement(task, entitlementName, &error);
+    BOOL entitled = value &&
+        CFGetTypeID(value) == CFBooleanGetTypeID() &&
+        CFBooleanGetValue((CFBooleanRef)value);
+
+    if (error) {
+        NSLog(@"[hid_gamepad_server] Failed to read entitlement %@: %@",
+              (__bridge NSString *)entitlementName, (__bridge NSError *)error);
+    }
+
+    if (!entitled) {
+        NSLog(@"[hid_gamepad_server] Required restricted entitlement is missing "
+               "or not true: %@", (__bridge NSString *)entitlementName);
+        NSLog(@"[hid_gamepad_server] IOHIDUserDevice creation requires this "
+               "entitlement to be authorized by an Apple-issued provisioning "
+               "profile and a valid, non-ad-hoc code signature. sudo and SIP "
+               "settings do not grant it.");
+    }
+
+    if (value) CFRelease(value);
+    if (error) CFRelease(error);
+    CFRelease(task);
+    return entitled;
+}
+
 // ─── Create HID device ─────────────────────────────────────────────────────────
 static BOOL createHIDDevice(void) {
     NSDictionary *props = @{
@@ -101,8 +142,11 @@ static BOOL createHIDDevice(void) {
     );
 
     if (!gHIDDevice) {
-        NSLog(@"[hid_gamepad_server] Failed to create IOHIDUserDevice. "
-               "Is SIP disabled? (csrutil disable)");
+        NSLog(@"[hid_gamepad_server] "
+               "IOHIDUserDeviceCreateWithProperties returned NULL.");
+        NSLog(@"[hid_gamepad_server] This API does not expose an IOReturn or "
+               "CFError for creation failures. Check the macOS unified log for "
+               "IOHIDFamily, amfid, and AppleMobileFileIntegrity messages.");
         return NO;
     }
 
@@ -189,8 +233,8 @@ int main(int argc, const char *argv[]) {
         signal(SIGINT,  handleSignal);
         signal(SIGTERM, handleSignal);
 
-        // 1. Create the virtual HID device
-        if (!createHIDDevice()) {
+        // 1. Validate authorization and create the virtual HID device
+        if (!hasVirtualHIDEntitlement() || !createHIDDevice()) {
             return 1;
         }
 

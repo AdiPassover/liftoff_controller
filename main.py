@@ -38,7 +38,7 @@ def main(server_host: str, server_port: int):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="UDP client")
     parser.add_argument("ip", nargs="?", default='localhost', help="Server IP address")
-    parser.add_argument("-p", "--port", default=25800, type=int, help="Server port")
+    parser.add_argument("-p", "--port", default=5000, type=int, help="Server port")
 
     args = parser.parse_args()
 
